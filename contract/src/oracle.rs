@@ -61,7 +61,7 @@ pub fn resolve_market(
     env.storage()
         .persistent()
         .set(&DataKey::Market(market_id), &market);
-    
+
     // Extend TTL using the same logic as market creation/lookup
     env.storage().persistent().extend_ttl(
         &DataKey::Market(market_id),
@@ -80,8 +80,8 @@ mod resolve_tests {
     use soroban_sdk::testutils::{Address as _, Ledger as _};
     use soroban_sdk::{symbol_short, vec, Address, Env, String};
 
-    use crate::{InsightArenaContract, InsightArenaContractClient, InsightArenaError};
     use crate::market::CreateMarketParams;
+    use crate::{InsightArenaContract, InsightArenaContractClient, InsightArenaError};
 
     fn register_token(env: &Env) -> Address {
         let token_admin = Address::generate(env);
@@ -124,7 +124,7 @@ mod resolve_tests {
         let creator = Address::generate(&env);
 
         let id = client.create_market(&creator, &default_params(&env));
-        
+
         // Advance time to resolution_time (now + 2000)
         env.ledger().set_timestamp(env.ledger().timestamp() + 2000);
 
@@ -158,12 +158,15 @@ mod resolve_tests {
         let creator = Address::generate(&env);
 
         let id = client.create_market(&creator, &default_params(&env));
-        
+
         // Only advance half-way to resolution_time
         env.ledger().set_timestamp(env.ledger().timestamp() + 1000);
 
         let result = client.try_resolve_market(&oracle, &id, &symbol_short!("yes"));
-        assert!(matches!(result, Err(Ok(InsightArenaError::MarketStillOpen))));
+        assert!(matches!(
+            result,
+            Err(Ok(InsightArenaError::MarketStillOpen))
+        ));
     }
 
     #[test]
@@ -180,7 +183,10 @@ mod resolve_tests {
 
         // Second attempt
         let result = client.try_resolve_market(&oracle, &id, &symbol_short!("yes"));
-        assert!(matches!(result, Err(Ok(InsightArenaError::MarketAlreadyResolved))));
+        assert!(matches!(
+            result,
+            Err(Ok(InsightArenaError::MarketAlreadyResolved))
+        ));
     }
 
     #[test]
