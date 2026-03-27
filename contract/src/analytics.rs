@@ -2,7 +2,7 @@ use soroban_sdk::{Address, Env, Symbol, Vec};
 
 use crate::config::{PERSISTENT_BUMP, PERSISTENT_THRESHOLD};
 use crate::errors::InsightArenaError;
-use crate::storage_types::{DataKey, MarketStats, PlatformStats, Prediction, UserProfile};
+use crate::storage_types::{DataKey, Market, MarketStats, PlatformStats, Prediction, UserProfile};
 
 // ── Volume tracking ───────────────────────────────────────────────────────────
 
@@ -17,26 +17,22 @@ pub fn add_volume(env: &Env, amount: i128) {
         .extend_ttl(&key, PERSISTENT_THRESHOLD, PERSISTENT_BUMP);
 }
 
-// ── View functions ────────────────────────────────────────────────────────────
+// ── Shared helper ─────────────────────────────────────────────────────────────
 
-/// Aggregate stats for a single market from stored market + prediction data.
-pub fn get_market_stats(env: Env, market_id: u64) -> Result<MarketStats, InsightArenaError> {
-    let market = env
-        .storage()
-        .persistent()
-        .get::<DataKey, crate::storage_types::Market>(&DataKey::Market(market_id))
-        .ok_or(InsightArenaError::MarketNotFound)?;
-
-    // Iterate predictions to find leading outcome by pool
+/// Accumulate per-outcome stake pools by iterating the predictor list.
+/// Returns parallel vecs: `(outcome_symbols, outcome_pools)`.
+fn accumulate_outcome_pools(
+    env: &Env,
+    market_id: u64,
+) -> (Vec<Symbol>, Vec<i128>) {
     let predictors: Vec<Address> = env
         .storage()
         .persistent()
         .get(&DataKey::PredictorList(market_id))
-        .unwrap_or_else(|| Vec::new(&env));
+        .unwrap_or_else(|| Vec::new(env));
 
-    // Accumulate pool per outcome using parallel symbol/amount vecs (no HashMap in no_std)
-    let mut outcome_symbols: Vec<Symbol> = Vec::new(&env);
-    let mut outcome_pools: Vec<i128> = Vec::new(&env);
+    let mut outcome_symbols: Vec<Symbol> = Vec::new(env);
+    let mut outcome_pools: Vec<i128> = Vec::new(env);
 
     for predictor in predictors.iter() {
         if let Some(pred) = env
@@ -62,7 +58,21 @@ pub fn get_market_stats(env: Env, market_id: u64) -> Result<MarketStats, Insight
         }
     }
 
-    // Find leading outcome
+    (outcome_symbols, outcome_pools)
+}
+
+// ── View functions ────────────────────────────────────────────────────────────
+
+/// Aggregate stats for a single market from stored market + prediction data.
+pub fn get_market_stats(env: Env, market_id: u64) -> Result<MarketStats, InsightArenaError> {
+    let market: Market = env
+        .storage()
+        .persistent()
+        .get(&DataKey::Market(market_id))
+        .ok_or(InsightArenaError::MarketNotFound)?;
+
+    let (outcome_symbols, outcome_pools) = accumulate_outcome_pools(&env, market_id);
+
     let mut leading_outcome = Symbol::new(&env, "");
     let mut leading_pool: i128 = 0;
     for i in 0..outcome_symbols.len() {
@@ -86,7 +96,6 @@ pub fn get_outcome_distribution(
     env: Env,
     market_id: u64,
 ) -> Result<Vec<(Symbol, i128)>, InsightArenaError> {
-    // Verify market exists
     if !env
         .storage()
         .persistent()
@@ -95,40 +104,9 @@ pub fn get_outcome_distribution(
         return Err(InsightArenaError::MarketNotFound);
     }
 
-    let predictors: Vec<Address> = env
-        .storage()
-        .persistent()
-        .get(&DataKey::PredictorList(market_id))
-        .unwrap_or_else(|| Vec::new(&env));
+    let (mut outcome_symbols, mut outcome_pools) = accumulate_outcome_pools(&env, market_id);
 
-    let mut outcome_symbols: Vec<Symbol> = Vec::new(&env);
-    let mut outcome_pools: Vec<i128> = Vec::new(&env);
-
-    for predictor in predictors.iter() {
-        if let Some(pred) = env
-            .storage()
-            .persistent()
-            .get::<DataKey, Prediction>(&DataKey::Prediction(market_id, predictor))
-        {
-            let mut found = false;
-            let mut idx: u32 = 0;
-            for sym in outcome_symbols.iter() {
-                if sym == pred.chosen_outcome {
-                    let current = outcome_pools.get(idx).unwrap_or(0);
-                    outcome_pools.set(idx, current.saturating_add(pred.stake_amount));
-                    found = true;
-                    break;
-                }
-                idx += 1;
-            }
-            if !found {
-                outcome_symbols.push_back(pred.chosen_outcome.clone());
-                outcome_pools.push_back(pred.stake_amount);
-            }
-        }
-    }
-
-    // Insertion-sort descending by pool (outcome count is small)
+    // Insertion-sort descending by pool (outcome count is always small)
     let n = outcome_symbols.len();
     for i in 1..n {
         let mut j = i;
@@ -164,7 +142,7 @@ pub fn get_outcome_distribution(
 pub fn get_user_stats(env: Env, user: Address) -> Result<UserProfile, InsightArenaError> {
     env.storage()
         .persistent()
-        .get(&DataKey::User(user.clone()))
+        .get(&DataKey::User(user))
         .ok_or(InsightArenaError::UserNotFound)
 }
 
@@ -182,7 +160,7 @@ pub fn get_platform_stats(env: Env) -> PlatformStats {
         .get(&DataKey::PlatformVolume)
         .unwrap_or(0);
 
-    let active_users = env
+    let active_users: u32 = env
         .storage()
         .persistent()
         .get::<DataKey, Vec<Address>>(&DataKey::UserList)
@@ -207,7 +185,7 @@ pub fn get_platform_stats(env: Env) -> PlatformStats {
 
 #[cfg(test)]
 mod analytics_tests {
-    use soroban_sdk::testutils::{Address as _, Ledger as _};
+    use soroban_sdk::testutils::Address as _;
     use soroban_sdk::token::StellarAssetClient;
     use soroban_sdk::{symbol_short, vec, Address, Env, String, Symbol};
 
@@ -220,7 +198,7 @@ mod analytics_tests {
             .address()
     }
 
-    fn deploy(env: &Env) -> (InsightArenaContractClient<'_>, Address, Address, Address) {
+    fn deploy(env: &Env) -> (InsightArenaContractClient<'_>, Address) {
         let id = env.register(InsightArenaContract, ());
         let client = InsightArenaContractClient::new(env, &id);
         let admin = Address::generate(env);
@@ -228,7 +206,7 @@ mod analytics_tests {
         let xlm_token = register_token(env);
         env.mock_all_auths();
         client.initialize(&admin, &oracle, &200_u32, &xlm_token);
-        (client, admin, oracle, xlm_token)
+        (client, xlm_token)
     }
 
     fn default_params(env: &Env) -> CreateMarketParams {
@@ -257,7 +235,7 @@ mod analytics_tests {
     fn get_market_stats_not_found() {
         let env = Env::default();
         env.mock_all_auths();
-        let (client, _, _, _) = deploy(&env);
+        let (client, _) = deploy(&env);
         let result = client.try_get_market_stats(&99);
         assert!(matches!(result, Err(Ok(InsightArenaError::MarketNotFound))));
     }
@@ -266,7 +244,7 @@ mod analytics_tests {
     fn get_market_stats_empty_market() {
         let env = Env::default();
         env.mock_all_auths();
-        let (client, _, _, _) = deploy(&env);
+        let (client, _) = deploy(&env);
         let creator = Address::generate(&env);
         let id = client.create_market(&creator, &default_params(&env));
 
@@ -280,7 +258,7 @@ mod analytics_tests {
     fn get_market_stats_correct_aggregation() {
         let env = Env::default();
         env.mock_all_auths();
-        let (client, _, _, xlm) = deploy(&env);
+        let (client, xlm) = deploy(&env);
         let creator = Address::generate(&env);
         let id = client.create_market(&creator, &default_params(&env));
 
@@ -308,7 +286,7 @@ mod analytics_tests {
     fn get_outcome_distribution_not_found() {
         let env = Env::default();
         env.mock_all_auths();
-        let (client, _, _, _) = deploy(&env);
+        let (client, _) = deploy(&env);
         let result = client.try_get_outcome_distribution(&99);
         assert!(matches!(result, Err(Ok(InsightArenaError::MarketNotFound))));
     }
@@ -317,7 +295,7 @@ mod analytics_tests {
     fn get_outcome_distribution_empty() {
         let env = Env::default();
         env.mock_all_auths();
-        let (client, _, _, _) = deploy(&env);
+        let (client, _) = deploy(&env);
         let creator = Address::generate(&env);
         let id = client.create_market(&creator, &default_params(&env));
 
@@ -329,7 +307,7 @@ mod analytics_tests {
     fn get_outcome_distribution_sorted_descending() {
         let env = Env::default();
         env.mock_all_auths();
-        let (client, _, _, xlm) = deploy(&env);
+        let (client, xlm) = deploy(&env);
         let creator = Address::generate(&env);
         let id = client.create_market(&creator, &default_params(&env));
 
@@ -340,15 +318,12 @@ mod analytics_tests {
         fund(&env, &xlm, &u2, 50_000_000);
         fund(&env, &xlm, &u3, 30_000_000);
 
-        // Submit "no" first with smaller amount, then "yes" with larger
         client.submit_prediction(&u1, &id, &symbol_short!("no"), &20_000_000);
         client.submit_prediction(&u2, &id, &symbol_short!("yes"), &50_000_000);
         client.submit_prediction(&u3, &id, &symbol_short!("no"), &30_000_000);
 
         let dist = client.get_outcome_distribution(&id);
         assert_eq!(dist.len(), 2);
-        // "no" = 50_000_000, "yes" = 50_000_000 — equal, but "no" was inserted first
-        // Actually "yes" = 50M, "no" = 50M — let's verify order by checking first >= second
         let (_, first_pool) = dist.get(0).unwrap();
         let (_, second_pool) = dist.get(1).unwrap();
         assert!(first_pool >= second_pool);
@@ -358,7 +333,7 @@ mod analytics_tests {
     fn get_outcome_distribution_correct_sums() {
         let env = Env::default();
         env.mock_all_auths();
-        let (client, _, _, xlm) = deploy(&env);
+        let (client, xlm) = deploy(&env);
         let creator = Address::generate(&env);
         let id = client.create_market(&creator, &default_params(&env));
 
@@ -389,7 +364,7 @@ mod analytics_tests {
     fn get_user_stats_not_found() {
         let env = Env::default();
         env.mock_all_auths();
-        let (client, _, _, _) = deploy(&env);
+        let (client, _) = deploy(&env);
         let unknown = Address::generate(&env);
         let result = client.try_get_user_stats(&unknown);
         assert!(matches!(result, Err(Ok(InsightArenaError::UserNotFound))));
@@ -399,7 +374,7 @@ mod analytics_tests {
     fn get_user_stats_after_prediction() {
         let env = Env::default();
         env.mock_all_auths();
-        let (client, _, _, xlm) = deploy(&env);
+        let (client, xlm) = deploy(&env);
         let creator = Address::generate(&env);
         let id = client.create_market(&creator, &default_params(&env));
 
@@ -418,7 +393,7 @@ mod analytics_tests {
     fn get_platform_stats_initial_state() {
         let env = Env::default();
         env.mock_all_auths();
-        let (client, _, _, _) = deploy(&env);
+        let (client, _) = deploy(&env);
 
         let stats = client.get_platform_stats();
         assert_eq!(stats.total_markets, 0);
@@ -431,7 +406,7 @@ mod analytics_tests {
     fn get_platform_stats_after_activity() {
         let env = Env::default();
         env.mock_all_auths();
-        let (client, _, _, xlm) = deploy(&env);
+        let (client, xlm) = deploy(&env);
         let creator = Address::generate(&env);
         let id = client.create_market(&creator, &default_params(&env));
 
@@ -452,7 +427,7 @@ mod analytics_tests {
     fn platform_volume_accumulates_across_markets() {
         let env = Env::default();
         env.mock_all_auths();
-        let (client, _, _, xlm) = deploy(&env);
+        let (client, xlm) = deploy(&env);
         let creator = Address::generate(&env);
 
         let id1 = client.create_market(&creator, &default_params(&env));

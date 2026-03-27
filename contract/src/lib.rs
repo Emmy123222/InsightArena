@@ -17,8 +17,8 @@ pub use crate::config::Config;
 pub use crate::errors::InsightArenaError;
 pub use crate::market::CreateMarketParams;
 pub use crate::storage_types::{
-    CreatorStats, DataKey, InviteCode, LeaderboardEntry, LeaderboardSnapshot, Market,
-    MarketStats, Prediction, PlatformStats, Season, UserProfile,
+    CreatorStats, DataKey, InviteCode, LeaderboardEntry, LeaderboardSnapshot, Market, MarketStats,
+    PlatformStats, Prediction, Season, UserProfile,
 };
 
 use soroban_sdk::{contract, contractimpl, Address, Env, Symbol, Vec};
