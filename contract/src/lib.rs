@@ -613,3 +613,6 @@ mod leaderboard_tests {
         assert!(matches!(result, Err(Ok(InsightArenaError::Paused))));
     }
 }
+
+#[cfg(test)]
+mod prediction_tests;
