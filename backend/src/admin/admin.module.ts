@@ -1,10 +1,11 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { User } from '../users/entities/user.entity';
+import { ActivityLog } from '../analytics/entities/activity-log.entity';
+import { Competition } from '../competitions/entities/competition.entity';
+import { FlagsModule } from '../flags/flags.module';
 import { Market } from '../markets/entities/market.entity';
 import { Prediction } from '../predictions/entities/prediction.entity';
-import { Competition } from '../competitions/entities/competition.entity';
-import { ActivityLog } from '../analytics/entities/activity-log.entity';
+import { User } from '../users/entities/user.entity';
 import { AdminController } from './admin.controller';
 import { AdminService } from './admin.service';
 
@@ -17,6 +18,7 @@ import { AdminService } from './admin.service';
       Competition,
       ActivityLog,
     ]),
+    FlagsModule,
   ],
   controllers: [AdminController],
   providers: [AdminService],

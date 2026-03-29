@@ -1,21 +1,21 @@
 import {
+  Body,
   Controller,
   Get,
-  Patch,
   Param,
-  Body,
+  Patch,
   Query,
-  UseGuards,
   Request,
+  UseGuards,
 } from '@nestjs/common';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Role } from '../common/enums/role.enum';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
 import { AdminService } from './admin.service';
-import { ListUsersQueryDto } from './dto/list-users-query.dto';
-import { BanUserDto } from './dto/ban-user.dto';
 import { ActivityLogQueryDto } from './dto/activity-log-query.dto';
+import { BanUserDto } from './dto/ban-user.dto';
+import { ListUsersQueryDto } from './dto/list-users-query.dto';
 import { StatsResponseDto } from './dto/stats-response.dto';
 
 @Controller('admin')
@@ -61,5 +61,23 @@ export class AdminController {
     @Query() query: ActivityLogQueryDto,
   ) {
     return this.adminService.getUserActivity(id, query);
+  }
+
+  @Get('flags')
+  async listFlags(@Query() query: ListFlagsQueryDto) {
+    return this.adminService.listFlags(query);
+  }
+
+  @Patch('flags/:id/resolve')
+  async resolveFlag(
+    @Param('id') id: string,
+    @Body() dto: ResolveFlagDto,
+    @Request() req: any,
+  ) {
+    return this.adminService.resolveFlag(
+      id,
+      dto,
+      (req as { user: { id: string } }).user.id,
+    );
   }
 }

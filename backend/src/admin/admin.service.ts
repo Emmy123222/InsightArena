@@ -1,14 +1,14 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between } from 'typeorm';
-import { User } from '../users/entities/user.entity';
+import { Between, Repository } from 'typeorm';
+import { AnalyticsService } from '../analytics/analytics.service';
+import { ActivityLog } from '../analytics/entities/activity-log.entity';
+import { Competition } from '../competitions/entities/competition.entity';
 import { Market } from '../markets/entities/market.entity';
 import { Prediction } from '../predictions/entities/prediction.entity';
-import { Competition } from '../competitions/entities/competition.entity';
-import { ActivityLog } from '../analytics/entities/activity-log.entity';
-import { AnalyticsService } from '../analytics/analytics.service';
-import { ListUsersQueryDto } from './dto/list-users-query.dto';
+import { User } from '../users/entities/user.entity';
 import { ActivityLogQueryDto } from './dto/activity-log-query.dto';
+import { ListUsersQueryDto } from './dto/list-users-query.dto';
 import { StatsResponseDto } from './dto/stats-response.dto';
 
 @Injectable()
@@ -25,6 +25,7 @@ export class AdminService {
     @InjectRepository(ActivityLog)
     private readonly activityLogsRepository: Repository<ActivityLog>,
     private readonly analyticsService: AnalyticsService,
+    private readonly flagsService: FlagsService,
   ) {}
 
   async getStats(): Promise<StatsResponseDto> {
@@ -188,5 +189,17 @@ export class AdminService {
         totalPages: Math.ceil(total / limit),
       },
     };
+  }
+
+  async listFlags(query: ListFlagsQueryDto) {
+    return this.flagsService.listFlags(query);
+  }
+
+  async resolveFlag(
+    flagId: string,
+    resolveFlagDto: ResolveFlagDto,
+    adminId: string,
+  ) {
+    return this.flagsService.resolveFlag(flagId, resolveFlagDto, adminId);
   }
 }
