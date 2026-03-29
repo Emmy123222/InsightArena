@@ -24,6 +24,10 @@ describe('UsersService', () => {
     reputation_score: 85,
     season_points: 100,
     role: 'user',
+    is_banned: false,
+    ban_reason: "",
+    banned_at: null,
+    banned_by: "",
     created_at: new Date('2024-01-01'),
     updated_at: new Date('2024-01-01'),
   };
