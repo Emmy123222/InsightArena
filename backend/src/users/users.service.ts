@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Prediction } from '../predictions/entities/prediction.entity';
@@ -10,6 +10,7 @@ import {
 } from './dto/list-user-predictions.dto';
 import { User } from './entities/user.entity';
 import { UserPreferences } from './entities/user-preferences.entity';
+import { UserFollow } from './entities/user-follow.entity';
 import { Market } from '../markets/entities/market.entity';
 import { Notification } from '../notifications/entities/notification.entity';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -17,6 +18,12 @@ import {
   UpdateUserPreferencesDto,
   UserPreferencesResponseDto,
 } from './dto/user-preferences.dto';
+import {
+  PaginationDto,
+  UserFollowResponseDto,
+  FollowersListDto,
+  FollowingListDto,
+} from './dto/user-follow.dto';
 
 import { CompetitionParticipant } from '../competitions/entities/competition-participant.entity';
 import {
@@ -38,6 +45,8 @@ export class UsersService {
     private readonly usersRepository: Repository<User>,
     @InjectRepository(UserPreferences)
     private readonly preferencesRepository: Repository<UserPreferences>,
+    @InjectRepository(UserFollow)
+    private readonly followRepository: Repository<UserFollow>,
     @InjectRepository(Prediction)
     private readonly predictionsRepository: Repository<Prediction>,
     @InjectRepository(Market)
@@ -355,6 +364,110 @@ export class UsersService {
       marketing_emails: updated.marketing_emails,
       created_at: updated.created_at,
       updated_at: updated.updated_at,
+    };
+  }
+
+  async followUser(
+    followerId: string,
+    followingAddress: string,
+  ): Promise<{ success: boolean; message: string }> {
+    const follower = await this.findById(followerId);
+    const following = await this.findByAddress(followingAddress);
+
+    if (follower.id === following.id) {
+      throw new BadRequestException('Cannot follow yourself');
+    }
+
+    const existing = await this.followRepository.findOne({
+      where: { follower_id: followerId, following_id: following.id },
+    });
+
+    if (existing) {
+      throw new BadRequestException('Already following this user');
+    }
+
+    await this.followRepository.save({
+      follower_id: followerId,
+      following_id: following.id,
+    });
+
+    return { success: true, message: 'User followed successfully' };
+  }
+
+  async unfollowUser(
+    followerId: string,
+    followingAddress: string,
+  ): Promise<{ success: boolean; message: string }> {
+    const follower = await this.findById(followerId);
+    const following = await this.findByAddress(followingAddress);
+
+    const result = await this.followRepository.delete({
+      follower_id: followerId,
+      following_id: following.id,
+    });
+
+    if (result.affected === 0) {
+      throw new NotFoundException('Follow relationship not found');
+    }
+
+    return { success: true, message: 'User unfollowed successfully' };
+  }
+
+  async getFollowers(
+    address: string,
+    dto: PaginationDto,
+  ): Promise<FollowersListDto> {
+    const user = await this.findByAddress(address);
+    const page = dto.page ?? 1;
+    const limit = Math.min(dto.limit ?? 20, 50);
+    const skip = (page - 1) * limit;
+
+    const [followers, total] = await this.followRepository
+      .createQueryBuilder('follow')
+      .leftJoinAndSelect('follow.follower', 'follower')
+      .where('follow.following_id = :userId', { userId: user.id })
+      .orderBy('follow.created_at', 'DESC')
+      .skip(skip)
+      .take(limit)
+      .getManyAndCount();
+
+    const data = followers.map((f) => this.mapUserToFollowResponse(f.follower));
+
+    return { data, total, page, limit };
+  }
+
+  async getFollowing(
+    address: string,
+    dto: PaginationDto,
+  ): Promise<FollowingListDto> {
+    const user = await this.findByAddress(address);
+    const page = dto.page ?? 1;
+    const limit = Math.min(dto.limit ?? 20, 50);
+    const skip = (page - 1) * limit;
+
+    const [following, total] = await this.followRepository
+      .createQueryBuilder('follow')
+      .leftJoinAndSelect('follow.following', 'following')
+      .where('follow.follower_id = :userId', { userId: user.id })
+      .orderBy('follow.created_at', 'DESC')
+      .skip(skip)
+      .take(limit)
+      .getManyAndCount();
+
+    const data = following.map((f) =>
+      this.mapUserToFollowResponse(f.following),
+    );
+
+    return { data, total, page, limit };
+  }
+
+  private mapUserToFollowResponse(user: User): UserFollowResponseDto {
+    return {
+      id: user.id,
+      stellar_address: user.stellar_address,
+      username: user.username,
+      avatar_url: user.avatar_url,
+      reputation_score: user.reputation_score,
     };
   }
 }

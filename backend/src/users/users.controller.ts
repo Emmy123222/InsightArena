@@ -2,6 +2,8 @@ import {
   Controller,
   Get,
   Patch,
+  Post,
+  Delete,
   Param,
   Body,
   Query,
@@ -20,6 +22,12 @@ import {
   UpdateUserPreferencesDto,
   UserPreferencesResponseDto,
 } from './dto/user-preferences.dto';
+import {
+  PaginationDto,
+  FollowersListDto,
+  FollowingListDto,
+  FollowActionResponseDto,
+} from './dto/user-follow.dto';
 import { User } from './entities/user.entity';
 import {
   ListUserPredictionsDto,
@@ -149,5 +157,76 @@ export class UsersController {
     @Body() dto: UpdateUserPreferencesDto,
   ): Promise<UserPreferencesResponseDto> {
     return this.usersService.updatePreferences(user.id, dto);
+  }
+
+  @Post(':address/follow')
+  @ApiOperation({ summary: 'Follow a user' })
+  @ApiResponse({
+    status: 200,
+    description: 'User followed successfully',
+    type: FollowActionResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  async followUser(
+    @CurrentUser() user: User,
+    @Param('address') address: string,
+  ): Promise<FollowActionResponseDto> {
+    return this.usersService.followUser(user.id, address);
+  }
+
+  @Delete(':address/unfollow')
+  @ApiOperation({ summary: 'Unfollow a user' })
+  @ApiResponse({
+    status: 200,
+    description: 'User unfollowed successfully',
+    type: FollowActionResponseDto,
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'Follow relationship not found' })
+  async unfollowUser(
+    @CurrentUser() user: User,
+    @Param('address') address: string,
+  ): Promise<FollowActionResponseDto> {
+    return this.usersService.unfollowUser(user.id, address);
+  }
+
+  @Get(':address/followers')
+  @Public()
+  @UsePipes(
+    new ValidationPipe({ whitelist: true, forbidNonWhitelisted: false }),
+  )
+  @ApiOperation({ summary: 'Get followers of a user' })
+  @ApiResponse({
+    status: 200,
+    description: 'Paginated followers list',
+    type: FollowersListDto,
+  })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  async getFollowers(
+    @Param('address') address: string,
+    @Query() query: PaginationDto,
+  ): Promise<FollowersListDto> {
+    return this.usersService.getFollowers(address, query);
+  }
+
+  @Get(':address/following')
+  @Public()
+  @UsePipes(
+    new ValidationPipe({ whitelist: true, forbidNonWhitelisted: false }),
+  )
+  @ApiOperation({ summary: 'Get users that a user is following' })
+  @ApiResponse({
+    status: 200,
+    description: 'Paginated following list',
+    type: FollowingListDto,
+  })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  async getFollowing(
+    @Param('address') address: string,
+    @Query() query: PaginationDto,
+  ): Promise<FollowingListDto> {
+    return this.usersService.getFollowing(address, query);
   }
 }
