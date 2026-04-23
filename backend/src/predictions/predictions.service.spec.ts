@@ -434,9 +434,9 @@ describe('PredictionsService', () => {
 
       mockPredictionsRepo.findOne.mockResolvedValue(prediction);
 
-      await expect(
-        service.findById('pred-1', otherUser.id),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(service.findById('pred-1', otherUser.id)).rejects.toThrow(
+        ForbiddenException,
+      );
     });
 
     it('should compute correct status for active prediction', async () => {

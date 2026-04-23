@@ -34,7 +34,7 @@ import { Prediction } from './entities/prediction.entity';
 @ApiBearerAuth()
 @Controller('predictions')
 export class PredictionsController {
-  constructor(private readonly predictionsService: PredictionsService) { }
+  constructor(private readonly predictionsService: PredictionsService) {}
 
   @Post()
   @UseGuards(BanGuard)

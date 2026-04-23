@@ -34,7 +34,7 @@ export class PredictionsService {
     private readonly usersRepository: Repository<User>,
     private readonly sorobanService: SorobanService,
     private readonly dataSource: DataSource,
-  ) { }
+  ) {}
 
   /**
    * Submit a prediction for a market.

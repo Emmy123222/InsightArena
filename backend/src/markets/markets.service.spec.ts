@@ -553,13 +553,10 @@ describe('MarketsService.update', () => {
   });
 });
 
-
 describe('MarketsService.getPredictionStats', () => {
   let service: MarketsService;
   let marketsRepository: MockRepo;
-  let predictionsRepository: jest.Mocked<
-    Pick<Repository<Prediction>, 'find'>
-  >;
+  let predictionsRepository: jest.Mocked<Pick<Repository<Prediction>, 'find'>>;
 
   const mockMarket = {
     id: 'market-1',

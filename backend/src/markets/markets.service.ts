@@ -60,7 +60,7 @@ export class MarketsService {
     private readonly usersService: UsersService,
     private readonly sorobanService: SorobanService,
     private readonly dataSource: DataSource,
-  ) { }
+  ) {}
 
   /**
    * Get prediction statistics for a market - anonymous outcome counts only
@@ -104,7 +104,7 @@ export class MarketsService {
         stat.count += 1;
         stat.total_staked_stroops = String(
           BigInt(stat.total_staked_stroops) +
-          BigInt(prediction.stake_amount_stroops),
+            BigInt(prediction.stake_amount_stroops),
         );
       }
     }

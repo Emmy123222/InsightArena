@@ -24,4 +24,4 @@ import { UsersModule } from '../users/users.module';
   providers: [MarketsService],
   exports: [MarketsService, TypeOrmModule],
 })
-export class MarketsModule { }
+export class MarketsModule {}

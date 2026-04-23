@@ -45,7 +45,7 @@ import { MarketsService } from './markets.service';
 @ApiTags('Markets')
 @Controller('markets')
 export class MarketsController {
-  constructor(private readonly marketsService: MarketsService) { }
+  constructor(private readonly marketsService: MarketsService) {}
 
   @Get('templates')
   @Public()
