@@ -259,10 +259,6 @@ fn test_overflow_protection_large_amounts() {
 fn test_minimum_liquidity_enforcement() {
     // MIN_LIQUIDITY should be enforced (1000)
     assert_eq!(MIN_LIQUIDITY, 1000);
-
-    // Deposits below minimum should be rejected in actual implementation
-    // This is a constant check
-    assert!(MIN_LIQUIDITY > 0);
 }
 
 #[test]
@@ -447,10 +443,6 @@ fn test_liquidity_module_constants() {
     // Verify all constants are set correctly
     assert_eq!(MIN_LIQUIDITY, 1000);
     assert_eq!(DEFAULT_FEE_BPS, 30);
-
-    // Verify constants are reasonable
-    assert!(MIN_LIQUIDITY > 0);
-    assert!(DEFAULT_FEE_BPS < 10_000); // Fee should be less than 100%
 }
 
 #[test]
@@ -651,33 +643,6 @@ fn test_calculate_lp_tokens_multiple_deposits() {
 }
 
 // ── Volume & History Tests (Issues #559, #560) ────────────────────────────────
-
-fn deploy_with_admin(env: &Env) -> (InsightArenaContractClient<'_>, Address) {
-    let id = env.register(InsightArenaContract, ());
-    let client = InsightArenaContractClient::new(env, &id);
-    let admin = Address::generate(env);
-    let oracle = Address::generate(env);
-    let xlm_token = register_token(env);
-    env.mock_all_auths();
-    client.initialize(&admin, &oracle, &200_u32, &xlm_token);
-    (client, admin)
-}
-
-fn create_market_params(env: &Env, now: u64) -> CreateMarketParams {
-    CreateMarketParams {
-        title: String::from_str(env, "Title"),
-        description: String::from_str(env, "Desc"),
-        category: Symbol::new(env, "Cat"),
-        outcomes: vec![env, symbol_short!("A"), symbol_short!("B")],
-        end_time: now + 1000,
-        resolution_time: now + 2000,
-        dispute_window: 1000,
-        creator_fee_bps: 0,
-        min_stake: 10_000_000,
-        max_stake: 100_000_000,
-        is_public: true,
-    }
-}
 
 #[test]
 fn test_pool_volume_zero_before_any_swaps() {
